@@ -8,6 +8,7 @@ import ActivityDetailTab from '@pages/activity-detail-tab.vue';
 import { getStorageItem } from '@utils/storage';
 import { UserType } from '@models/user';
 
+
 const { setMessage } = inject('banner') as any;
 
 let userIsInstructor = false,
@@ -89,6 +90,7 @@ const form = reactive({
 });
 
 const handleQuery = async (resetPage: boolean = true) => {
+    console.log("开始请求数据")
     try {
         reviews.value = await Review.listByReviewerId(
             {
@@ -97,9 +99,10 @@ const handleQuery = async (resetPage: boolean = true) => {
                 state: form.status,
             },
             {
-                serverEndpoint: devConfig.serverEndpoint,
+                serverEndpoint: 'http://localhost/api',
             }
         );
+        // console.log(JSON.stringify(reviews.value))
         if (resetPage) {
             config.current = 1;
         }
@@ -194,18 +197,38 @@ handleQuery();
             <InputSelect
                 v-model="form.type"
                 :options="[
-                    {
-                        value: '-1',
-                        label: '全部',
-                    },
-                    {
-                        value: '0',
-                        label: '活动内容审核',
-                    },
-                    {
-                        value: '1',
-                        label: '加分条审核',
-                    },
+                    {
+                        value: '-1',
+                        label: '全部',
+                    },
+                    {
+                        value: '0',
+                        label: '活动草稿',
+                    },
+                    {
+                        value: '1',
+                        label: '活动审核中',
+                    },
+                    {
+                        value: '2',
+                        label: '活动审核通过',
+                    },
+                    {
+                        value: '3',
+                        label: '活动审核未通过',
+                    },
+                    {
+                        value: '4',
+                        label: '加分条审核中',
+                    },
+                    {
+                        value: '5',
+                        label: '加分条审核通过',
+                    },
+                    {
+                        value: '6',
+                        label: '加分条审核未通过',
+                    },
                 ]"
                 label="类型"
                 name="type"

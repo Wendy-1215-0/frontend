@@ -23,7 +23,7 @@ try {
 
 <template>
     <div class="mx-auto w-full px-4">
-        <Tabs v-model:tab="tab" :tabs="tabs" />
+        <!-- <Tabs v-model:tab="tab" :tabs="tabs" /> -->
         <AdminManagemenet v-if="isSU && tab === 1" />
         <AdminProfile v-else-if="tab === 0" />
     </div>

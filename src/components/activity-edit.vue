@@ -6,7 +6,7 @@ import { Activity } from '@models/activity';
 import InputTextarea from '@components/input-textarea.vue';
 import InputText from '@components/input-text.vue';
 import InputDate from '@components/input-date.vue';
-import ActivityPreview from '@components/activity-preview.vue';
+// import ActivityPreview from '@components/activity-preview.vue';
 
 const { setMessage } = inject('banner') as any;
 
@@ -117,10 +117,10 @@ if (!isCreatingNewActivity) {
                 </button>
             </form>
         </template>
-        <div class="w-md rounded-lg border p-4">
+        <!-- <div class="w-md rounded-lg border p-4">
             <h3 class="mb-4 text-2xl font-black" v-if="editable">预览活动信息</h3>
             <activity-preview :model="activity" />
-        </div>
+        </div> -->
     </div>
     <p v-if="status === 2">
         无法获取活动信息；

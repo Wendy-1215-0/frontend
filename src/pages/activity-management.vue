@@ -1,14 +1,15 @@
 <script lang="ts" setup>
 import { setTitle } from '@utils/title';
 import { Activity, ActivityState } from '@models/activity';
-import { inject, ref } from 'vue';
+import { inject, ref, nextTick } from 'vue'; // 引入 nextTick
 import Spinner from '@components/spinner.vue';
 import ActivityRow from '@components/activity-row.vue';
 import { GoodDate } from '@utils/datetime';
 import ActivityDetailTab from '@pages/activity-detail-tab.vue';
 import ActivityTab from '@pages/activity-tab.vue';
+import ActivityfixTab from '@pages/activityfix-tab.vue';
 import InputSelect from '@components/input-select.vue';
-import ActivityReviewTab from '@components/activity-review-tab.vue';
+import { errorBadRequest, errorForbidden, errorNotFound, errorInternal } from '@/utils/error-msg';
 
 const { setMessage } = inject('banner') as any;
 
@@ -29,6 +30,11 @@ let activities = ref<Model[]>([]),
     offset = ref(0),
     activeID = ref<string>(),
     currentAction = ref<string>();
+    
+// 确认删除对话框
+const showDeleteConfirm = ref(false);
+const activityToDelete = ref<string>('');
+const deleteLoading = ref(false);
 
 const handleQuery = async (_: boolean = false) => {
         status.value = 0;
@@ -39,13 +45,14 @@ const handleQuery = async (_: boolean = false) => {
             const t = await Activity.list(limit, offset.value, parseInt(state.value), {
                 serverEndpoint: 'http://127.0.0.1/api',
             });
+            console.log(t)
             activities.value = t.map((activity) => {
                 return {
                     id: activity.id,
                     name: activity.name,
                     date: activity.date,
                     state: activity.state,
-                    actions: ['活动事项', '审核', '活动详情', '加分条'],
+                    actions: ['活动事项', '活动详情','活动修改', '删除'], // 添加删除操作
                 };
             });
             setMessage({
@@ -79,6 +86,86 @@ const handleQuery = async (_: boolean = false) => {
         });
     };
 
+// 处理活动操作
+const handleActivityAction = (activity: Model, action: string) => {
+    if (action === '删除') {
+        // 显示确认删除对话框
+        activityToDelete.value = activity.id;
+        showDeleteConfirm.value = true;
+    } else {
+        if (activeID.value === activity.id && currentAction.value === action) {
+            activeID.value = '';
+            currentAction.value = '';
+            nextTick(() => {
+                activeID.value = activity.id;
+                currentAction.value = action;
+            });
+        } else {
+            activeID.value = activity.id;
+            currentAction.value = action;
+        }
+    }
+};
+
+// 删除活动
+const deleteActivity = async () => {
+    if (!activityToDelete.value) return;
+    
+    deleteLoading.value = true;
+    try {
+        await Activity.delete(activityToDelete.value, {
+            serverEndpoint: 'http://127.0.0.1/api',
+        });
+        
+        // 从活动列表中移除被删除的活动
+        activities.value = activities.value.filter(activity => activity.id !== activityToDelete.value);
+        
+        // 如果当前选中的是被删除的活动，清除选中状态
+        if (activeID.value === activityToDelete.value) {
+            activeID.value = '';
+            currentAction.value = '';
+        }
+        
+        setMessage({
+            type: 'success',
+            message: '活动已成功删除',
+        });
+        
+        closeDeleteConfirm();
+    } catch (error) {
+        let errorMessage = '删除活动失败，请稍后重试';
+        
+        if (error instanceof Error) {
+            if (error.message === errorBadRequest) {
+                errorMessage = '请求参数错误';
+            } else if (error.message === errorForbidden) {
+                errorMessage = '您没有权限删除此活动';
+            } else if (error.message === errorNotFound) {
+                errorMessage = '活动不存在或已被删除';
+            } else if (error.message === errorInternal) {
+                errorMessage = '服务器内部错误，请联系管理员';
+            } else {
+                errorMessage = error.message || errorMessage;
+            }
+        }
+        
+        setMessage({
+            type: 'error',
+            message: errorMessage,
+        });
+    } finally {
+        deleteLoading.value = false;
+    }
+};
+
+// 关闭确认删除对话框
+const closeDeleteConfirm = () => {
+    showDeleteConfirm.value = false;
+    activityToDelete.value = '';
+    deleteLoading.value = false;
+};
+
+// 初始化查询
 handleQuery();
 </script>
 
@@ -89,38 +176,14 @@ handleQuery();
             <InputSelect
                 v-model="state"
                 :options="[
-                    {
-                        value: '-1',
-                        label: '全部',
-                    },
-                    {
-                        value: '0',
-                        label: '活动草稿',
-                    },
-                    {
-                        value: '1',
-                        label: '活动审核中',
-                    },
-                    {
-                        value: '2',
-                        label: '活动审核通过',
-                    },
-                    {
-                        value: '3',
-                        label: '活动审核未通过',
-                    },
-                    {
-                        value: '4',
-                        label: '加分条审核中',
-                    },
-                    {
-                        value: '5',
-                        label: '加分条审核通过',
-                    },
-                    {
-                        value: '6',
-                        label: '加分条审核未通过',
-                    },
+                    { value: '-1', label: '全部' },
+                    { value: '0', label: '活动草稿' },
+                    { value: '1', label: '活动审核中' },
+                    { value: '2', label: '活动审核通过' },
+                    { value: '3', label: '活动审核未通过' },
+                    { value: '4', label: '加分条审核中' },
+                    { value: '5', label: '加分条审核通过' },
+                    { value: '6', label: '加分条审核未通过' },
                 ]"
                 label="状态"
                 name="status"
@@ -146,11 +209,7 @@ handleQuery();
                     <a
                         class="text-primary dark:text-primary-200 underline"
                         href="?"
-                        @click.prevent="
-                            () => {
-                                handleQuery(false);
-                            }
-                        "
+                        @click.prevent="handleQuery(false)"
                     >
                         重新加载（这会丢失未提交的数据）
                     </a>
@@ -170,17 +229,13 @@ handleQuery();
                     v-for="activity in activities"
                     :key="activity.id"
                     :activity="activity"
-                    :on-action="
-                        (action: string) => {
-                            activeID = activity.id;
-                            currentAction = action;
-                        }
-                    "
+                    :on-action="(action: string) => handleActivityAction(activity, action)"
                 />
             </tbody>
         </table>
         <p v-if="activities.length === 0" class="my-4 block text-center font-bold">无活动</p>
     </div>
+    
     <div v-if="activeID" class="mt-8">
         <activity-detail-tab
             v-if="currentAction === '活动事项'"
@@ -193,24 +248,46 @@ handleQuery();
             :editable="[0, 3].indexOf(activities.find((a) => a.id === activeID)?.state ?? -1) != -1"
             :on-saved="onActivitySaved"
         />
-        <activity-review-tab
-            v-if="currentAction === '审核'"
+        <activityfix-tab
+            v-if="currentAction === '活动修改'"
             :id="activeID"
-            :activityCreatable="[0, 3].indexOf(activities.find((a) => a.id === activeID)?.state ?? -1) != -1"
-            :ticketCreatable="[2, 6].indexOf(activities.find((a) => a.id === activeID)?.state ?? -1) != -1"
+            :editable="[0, 3].indexOf(activities.find((a) => a.id === activeID)?.state ?? -1) != -1"
+            :on-saved="onActivitySaved"
         />
     </div>
+    
     <p v-if="status === 2">
         无法获取活动信息；
         <a
             class="text-primary dark:text-primary-200 underline"
             href="?"
-            @click.prevent="
-                () => {
-                    handleQuery(false);
-                }
-            "
+            @click.prevent="handleQuery(false)"
             >重试</a
         >
     </p>
+    
+    <!-- 确认删除对话框 -->
+    <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-md">
+            <h3 class="text-lg font-bold mb-4">确认删除</h3>
+            <p class="mb-6">您确定要删除此活动吗？此操作无法撤销。</p>
+            <div class="flex justify-end space-x-3">
+                <button
+                    class="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    @click="closeDeleteConfirm"
+                    :disabled="deleteLoading"
+                >
+                    取消
+                </button>
+                <button
+                    class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                    @click="deleteActivity"
+                    :disabled="deleteLoading"
+                >
+                    <Spinner v-if="deleteLoading" size="sm" class="mr-1" />
+                    <span>确认删除</span>
+                </button>
+            </div>
+        </div>
+    </div>
 </template>

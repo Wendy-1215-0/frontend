@@ -199,7 +199,7 @@ export class Admin extends User {
             body: JSON.stringify(data),
         });
         const json = await response.json();
-
+        console.log(json,123123)
         if (response.ok) {
             return Admin.fromJSON(json.data);
         } else if (response.status === 400) {

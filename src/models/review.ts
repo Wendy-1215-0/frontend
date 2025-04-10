@@ -1,6 +1,8 @@
 import { getCookie } from '@utils/cookie';
 import { errorBadRequest, errorForbidden, errorInternal, errorNotFound } from '@utils/error-msg';
 import { GoodDate } from '@utils/datetime';
+import axios from 'axios'
+import { log } from 'console';
 
 export enum ReviewState {
     ReviewInstructorPending,
@@ -70,12 +72,7 @@ export class Review {
     }
 
     static list = async (activityId: string, props: { serverEndpoint?: string }) => {
-        const response = await fetch(props.serverEndpoint + '/activity/' + activityId + '/review', {
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: getCookie('token') || '',
-            },
-        });
+        const response = await fetch(props.serverEndpoint + '/activity/' + activityId + '/review');
         const json = await response.json();
         if (response.ok) {
             return json;
@@ -137,13 +134,10 @@ export class Review {
             return json;
         } else if (response.status === 500) {
             throw new Error(errorInternal);
-        } else if (response.status === 406) {
-            throw new Error('发生冲突');
         } else {
             throw new Error(json.error);
         }
     };
-
     static listByReviewerId = async (
         {
             offset = 0,
@@ -158,27 +152,65 @@ export class Review {
         },
         props: { serverEndpoint?: string }
     ) => {
-        const uri = new URL(props.serverEndpoint + '/activity/review/reviewer');
-        uri.searchParams.append('offset', offset.toString());
-        uri.searchParams.append('limit', limit.toString());
-        uri.searchParams.append('type', type);
-        uri.searchParams.append('state', state);
-        const response = await fetch(uri, {
-                method: 'GET',
+        try {
+            const url = new URL(`${props.serverEndpoint}/activity`);
+            
+            // 构建查询参数，确保符合后端要求
+            url.searchParams.append('offset', offset.toString());
+            url.searchParams.append('limit', limit.toString());
+            
+            // 仅当 state 不是 '-1' 时才添加到查询参数中
+            if (state !== '-1') {
+                url.searchParams.append('state', state);
+            }
+            
+            const response = await fetch(url.toString(), {
                 headers: {
-                    Authorization: getCookie('token') || '',
-                },
-            }),
-            json = await response.json();
-
-        if (response.ok) {
-            return Review.fromJSONList(json.data);
-        } else if (response.status === 404) {
-            throw new Error(errorNotFound);
-        } else if (response.status === 500) {
-            throw new Error(errorInternal);
-        } else {
-            throw new Error((json as any).error);
+                    'Authorization': getCookie('token') || '',
+                }
+            });
+            
+            if (!response.ok) {
+                const json = await response.json();
+                if (response.status === 404) {
+                    throw new Error(errorNotFound);
+                } else if (response.status === 500) {
+                    throw new Error(errorInternal);
+                } else {
+                    throw new Error(json.message || '未知错误');
+                }
+            }
+            
+            const json = await response.json();
+            
+            if (!json || !json.data) {
+                return [];
+            }
+            
+            // 将活动数据转换为审核数据格式
+            return json.data.map((activity: any) => {
+                return new Review(
+                    activity.id || '',
+                    activity.name || '',
+                    0,
+                    activity.owner || '',
+                    '待分配',
+                    '',
+                    '待分配',
+                    '',
+                    activity.state || 0,
+                    activity.updatedAt ? GoodDate.fromString(activity.updatedAt) : undefined
+                );
+            });
+        } catch (error) {
+            console.error('请求错误:', error);
+            if (error instanceof Error) {
+                if (error.message === 'Failed to fetch') {
+                    throw new Error('网络请求超时，请检查您的网络连接');
+                }
+                throw error;
+            }
+            throw new Error('未知错误');
         }
     };
 }

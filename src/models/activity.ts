@@ -2,6 +2,7 @@ import { getCookie } from '@utils/cookie';
 import { GoodDate } from '@utils/datetime';
 import { errorBadRequest, errorForbidden, errorInternal, errorNotFound } from '@utils/error-msg';
 
+
 export enum ActivityState {
     Draft = 0,
     Pending = 1,
@@ -116,8 +117,12 @@ export class Activity {
     );
 
     static list = async (limit: number, offset: number, state: number, props: { serverEndpoint?: string }) => {
+        const url = `${props.serverEndpoint}/activity`
+        console.log('====================================');
+        console.log(url);
+        console.log('====================================');
         const response = await fetch(
-            props.serverEndpoint + '/activity' + `?limit=${limit}&offset=${offset}&state=${state}`
+            url
         );
         const json = await response.json();
         if (response.ok) {
